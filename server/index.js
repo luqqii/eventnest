@@ -42,6 +42,7 @@ app.use(
       "http://localhost:3000",
       "https://eventnest-fullstack.vercel.app",
       "https://eventbookings-ten.vercel.app", 
+      "https://eventnest-delta.vercel.app",
       process.env.CLIENT_URL
     ].filter(Boolean),
     credentials: true,          // needed for HttpOnly cookie exchange
