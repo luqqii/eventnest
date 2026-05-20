@@ -15,15 +15,18 @@
 
 // ─── Runtime sanity-check of the env var ─────────────────────────────────────
 const rawBase = process.env.NEXT_PUBLIC_API_URL;
+const isProd = process.env.NODE_ENV === "production";
+const defaultBase = isProd
+  ? "https://eventnest-api-6opz.onrender.com/api"
+  : "http://localhost:5000/api";
+
 if (!rawBase && typeof window !== "undefined") {
   console.warn(
-    "[api] NEXT_PUBLIC_API_URL is not set. " +
-    "Falling back to http://localhost:5000/api. " +
-    "Add it to .env.local and restart the dev server."
+    `[api] NEXT_PUBLIC_API_URL is not set. Falling back to ${defaultBase}.`
   );
 }
 
-const _configured = (rawBase ?? "http://localhost:5000/api").trim();
+const _configured = (rawBase ?? defaultBase).trim();
 
 /**
  * When NEXT_PUBLIC_API_URL is relative (e.g. "/api") — which is the case when
