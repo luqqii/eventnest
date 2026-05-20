@@ -155,7 +155,7 @@ async function sendTicketEmail({ to, order, tickets, event, buyerName }) {
       html,
     });
 
-    if (process.env.NODE_ENV !== "production") {
+    if (!process.env.SMTP_HOST) {
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) {
         console.log(`📧 [email] Preview: ${previewUrl}`);
@@ -260,7 +260,7 @@ async function sendVerificationEmail({ to, name, token }) {
       subject: "✉️ Verify your email address — EventNest",
       html,
     });
-    if (process.env.NODE_ENV !== "production") {
+    if (!process.env.SMTP_HOST) {
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) {
         console.log(`📧 [email] Verification email preview: ${previewUrl}`);
@@ -283,7 +283,7 @@ async function sendPasswordResetEmail({ to, name, token }) {
       subject: "🔒 Reset your password — EventNest",
       html,
     });
-    if (process.env.NODE_ENV !== "production") {
+    if (!process.env.SMTP_HOST) {
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) {
         console.log(`📧 [email] Password reset email preview: ${previewUrl}`);
@@ -318,7 +318,7 @@ async function sendSupportTicketEmail({ name, email, subject, message }) {
       `
     });
 
-    if (process.env.NODE_ENV !== "production") {
+    if (!process.env.SMTP_HOST) {
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) {
         console.log(`📧 [support email] Ticket email preview: ${previewUrl}`);
@@ -382,7 +382,7 @@ async function sendRefundEmail({ to, orderNumber, total, eventTitle, buyerName }
       subject: `💵 Refund processed for order ${orderNumber} — EventNest`,
       html,
     });
-    if (process.env.NODE_ENV !== "production") {
+    if (!process.env.SMTP_HOST) {
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) console.log(`📧 [email] Refund email preview: ${previewUrl}`);
     }
@@ -455,7 +455,7 @@ async function sendEventUpdateEmail({ to, eventTitle, changes, buyerName, eventU
       subject: `🔔 Important update for ${eventTitle} — EventNest`,
       html,
     });
-    if (process.env.NODE_ENV !== "production") {
+    if (!process.env.SMTP_HOST) {
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) console.log(`📧 [email] Event update email preview: ${previewUrl}`);
     }
@@ -518,7 +518,7 @@ async function sendEventCancelledEmail({ to, eventTitle, buyerName, refundStatus
       subject: `⚠️ Event Cancelled Notice: ${eventTitle} — EventNest`,
       html,
     });
-    if (process.env.NODE_ENV !== "production") {
+    if (!process.env.SMTP_HOST) {
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) console.log(`📧 [email] Event cancellation email preview: ${previewUrl}`);
     }
@@ -609,7 +609,7 @@ async function sendEventReminderEmail({ to, event, ticketCode, attendeeName }) {
       subject: `⏳ Tomorrow: Reminder for ${event.title} — EventNest`,
       html,
     });
-    if (process.env.NODE_ENV !== "production") {
+    if (!process.env.SMTP_HOST) {
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) console.log(`📧 [email] Event reminder email preview: ${previewUrl}`);
     }
