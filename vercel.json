@@ -4,7 +4,7 @@
   "outputDirectory": ".next",
   "installCommand": "npm install",
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://eventnest-api-e2oj.onrender.com/api",
+    "NEXT_PUBLIC_API_URL": "https://eventnest-api-6opz.onrender.com/api",
     "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": ""
   },
   "headers": [
