@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Next.js Edge Middleware — runs before every matching request.
+ * Next.js Edge Proxy — runs before every matching request.
+ * Replaces the deprecated "middleware" convention in Next.js 16.
  *
- * Protected routes: /dashboard, /create-event
+ * Protected routes: /dashboard, /create-event, /tickets, /scan, /checkout, /admin
  *   → requires a valid access_token cookie (set by AuthContext after login)
  *   → unauthenticated users are redirected to /login?redirect=<path>
  *
  * Auth routes: /login, /signup
- *   → authenticated users are redirected to / (no double-login)
+ *   → authenticated users are redirected to their respective dashboards based on role
  */
 
-const PROTECTED_PATHS = ["/dashboard", "/create-event", "/tickets", "/scan", "/checkout"];
+const PROTECTED_PATHS = ["/dashboard", "/create-event", "/tickets", "/scan", "/checkout", "/admin"];
 const AUTH_PATHS = ["/login", "/signup"];
 
 export function proxy(request: NextRequest) {
@@ -21,6 +22,13 @@ export function proxy(request: NextRequest) {
 
   // ── Redirect logged-in users away from auth pages ─────────────────────────
   if (isAuthenticated && AUTH_PATHS.some((p) => pathname.startsWith(p))) {
+    const role = request.cookies.get("user_role")?.value;
+    if (role === "admin") {
+      return NextResponse.redirect(new URL("/admin", request.url));
+    }
+    if (role === "organizer") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
     return NextResponse.redirect(new URL("/", request.url));
   }
 
@@ -29,6 +37,14 @@ export function proxy(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // ── Access control: admin path only for admin role ────────────────────────
+  if (isAuthenticated && pathname.startsWith("/admin")) {
+    const role = request.cookies.get("user_role")?.value;
+    if (role !== "admin") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
   }
 
   return NextResponse.next();

@@ -6,10 +6,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Ticket, Menu, X, LogOut, User, QrCode, ShieldCheck,
   ChevronDown, Calendar, Plus, HelpCircle,
-  LayoutGrid, Building2, BarChart2, Zap, Search,
+  LayoutGrid, Building2, BarChart2, Zap, Search, Clock,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
+import { authApi, extractError } from "@/lib/api";
 
 // ─── Currencies ──────────────────────────────────────────────────────────────
 const CURRENCIES = [
@@ -118,7 +119,7 @@ const INDUSTRY_LINKS = [
 ];
 
 const HELP_LINKS = [
-  { label: "Help Center",    href: "mailto:support@eventnest.dev", icon: HelpCircle },
+  { label: "Help Center",    href: "/support", icon: HelpCircle },
   { label: "For Organizers", href: "/create-event", icon: Building2  },
   { label: "API Docs",       href: "#", icon: LayoutGrid },
   { label: "Status Page",    href: "#", icon: Zap        },
@@ -177,12 +178,13 @@ export default function Navbar() {
   const [countrySearch, setCountrySearch]     = useState("");
   const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]);
   const [currency, setCurrencyState]          = useState<Currency>(CURRENCIES[0]);
+  const [resending, setResending]             = useState(false);
 
   const signInRef  = useRef<HTMLDivElement>(null);
   const currRef    = useRef<HTMLDivElement>(null);
   const countryRef = useRef<HTMLDivElement>(null);
 
-  const { isAuthenticated, user, logout, isLoading } = useAuth();
+  const { isAuthenticated, user, logout, isLoading, accessToken } = useAuth();
   const isOrganizer = user?.role === "organizer" || user?.role === "admin";
   const isAttendee = user?.role === "attendee";
 
@@ -236,6 +238,7 @@ export default function Navbar() {
   );
 
   return (
+    <>
     <header className="sticky top-0 z-50 w-full" style={{ background: "#1a2b4b", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
       <div className="max-w-[1440px] mx-auto px-5 h-[52px] flex items-center">
 
@@ -301,7 +304,7 @@ export default function Navbar() {
 
           {/* Pricing */}
           <Link
-            href="/#pricing"
+            href="/pricing"
             className="flex items-center h-full px-[11px] text-[14px] font-normal text-white/80 hover:text-white transition-colors whitespace-nowrap"
           >
             Pricing
@@ -610,5 +613,31 @@ export default function Navbar() {
         )}
       </AnimatePresence>
     </header>
+
+    {/* Dynamic Global Verification Banner */}
+    {!isLoading && isAuthenticated && user && !user.isVerified && (
+      <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-xs text-white relative z-40 flex items-center justify-center gap-2">
+        <Clock className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 animate-pulse" />
+        <span>Please verify your email address. We sent a verification link to <strong className="text-amber-300 font-semibold">{user.email}</strong>.</span>
+        <button
+          onClick={async () => {
+            if (!accessToken) return;
+            setResending(true);
+            const res = await authApi.resendVerification(accessToken);
+            setResending(false);
+            if (res.success) {
+              toast.success("Verification link sent! Check your inbox.");
+            } else {
+              toast.error(extractError(res));
+            }
+          }}
+          disabled={resending}
+          className="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 font-bold ml-1 transition-all disabled:opacity-50"
+        >
+          {resending ? "Sending…" : "Resend Link"}
+        </button>
+      </div>
+    )}
+    </>
   );
 }

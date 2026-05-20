@@ -430,9 +430,14 @@ function CheckoutForm() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl bg-[#060f17] border border-white/8 p-4 flex items-center justify-center gap-3 text-white/30">
-                <Lock className="w-4 h-4" />
-                <span className="text-sm">Demo mode — no payment required</span>
+              <div className="rounded-xl bg-red-500/10 border border-red-500/25 p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-3 text-red-400 font-semibold">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-sm">Payment gateway not configured</span>
+                </div>
+                <p className="text-white/40 text-xs">
+                  Stripe is not configured in this environment. Paid ticket checkout is currently unavailable.
+                </p>
               </div>
             )}
           </motion.div>
@@ -442,9 +447,9 @@ function CheckoutForm() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.2 }}
             type="submit"
-            disabled={loading}
+            disabled={loading || (total > 0 && !STRIPE_KEY)}
             className="w-full py-4 rounded-xl bg-[#ff5a5f] text-[white] font-bold text-sm
-              shadow-[0_0_20px_rgba(0,210,106,0.3)] hover:shadow-[0_0_30px_rgba(0,210,106,0.45)]
+              shadow-[0_0_20px_rgba(255,90,95,0.3)] hover:shadow-[0_0_30px_rgba(255,90,95,0.45)]
               disabled:opacity-60 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
           >
             {loading ? (
@@ -453,10 +458,10 @@ function CheckoutForm() {
               </>
             ) : useStripe ? (
               <><CreditCard className="w-4 h-4" /> Pay ${total.toFixed(2)} with Stripe</>
+            ) : total === 0 ? (
+              <><CheckCircle className="w-4 h-4" /> Confirm Free Booking</>
             ) : (
-              <><Lock className="w-4 h-4" />
-                {total === 0 ? "Confirm Free Booking" : `Confirm Booking — $${total.toFixed(2)}`}
-              </>
+              <><Lock className="w-4 h-4" /> Checkout Disabled</>
             )}
           </motion.button>
 

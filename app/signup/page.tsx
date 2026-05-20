@@ -11,6 +11,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 import { ShakeError } from "@/components/animations";
+import Script from "next/script";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,8 +58,11 @@ function FieldError({ msg }: { msg?: string }) {
 function SignupForm() {
   const router   = useRouter();
   const params   = useSearchParams();
-  const redirect = params.get("redirect") ?? "/";
-  const { signup, isAuthenticated, isLoading: authLoading } = useAuth();
+  const redirectParam = params.get("redirect");
+  const redirect = (redirectParam && !redirectParam.startsWith("/login") && !redirectParam.startsWith("/signup"))
+    ? redirectParam
+    : "/";
+  const { signup, loginWithGoogle, isAuthenticated, user, isLoading: authLoading } = useAuth();
 
   const [form, setForm]           = useState({ name: "", email: "", password: "", role: "attendee" as Role });
   const [showPw, setShowPw]       = useState(false);
@@ -68,9 +72,57 @@ function SignupForm() {
   const [shakeCount, setShakeCount]   = useState(0);
   const [focused, setFocused]         = useState<string | null>(null);
 
+  async function handleGoogleCredentialResponse(credential: string) {
+    setLoading(true);
+    setGlobalError("");
+    const { ok, error: err } = await loginWithGoogle(credential);
+    setLoading(false);
+    if (!ok) {
+      setGlobalError(err ?? "Google registration failed.");
+      setShakeCount((n) => n + 1);
+      return;
+    }
+    toast.success("Welcome back (Google Auth)!");
+    // The redirect will be handled by the useEffect automatically
+  }
+
+  function initGoogleSignIn() {
+    if (typeof window === "undefined" || !(window as any).google) return;
+    try {
+      (window as any).google.accounts.id.initialize({
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "mock-client-id",
+        callback: (res: any) => handleGoogleCredentialResponse(res.credential),
+      });
+      (window as any).google.accounts.id.renderButton(
+        document.getElementById("google-signup-btn"),
+        { theme: "outline", size: "large", width: 380, text: "signup_with" }
+      );
+    } catch (err) {
+      console.warn("[Google Auth] Could not render Google signup button:", err);
+    }
+  }
+
   useEffect(() => {
-    if (!authLoading && isAuthenticated) router.replace(redirect);
-  }, [isAuthenticated, authLoading, router, redirect]);
+    if (typeof window !== "undefined" && (window as any).google) {
+      initGoogleSignIn();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      if (redirect === "/") {
+        if (user.role === "admin") {
+          router.replace("/admin");
+        } else if (user.role === "organizer") {
+          router.replace("/dashboard");
+        } else {
+          router.replace("/");
+        }
+      } else {
+        router.replace(redirect);
+      }
+    }
+  }, [isAuthenticated, authLoading, user, router, redirect]);
 
   function setField(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -126,6 +178,14 @@ function SignupForm() {
     if (fieldErrors[field]) return "border-red-500/50 ring-1 ring-red-500/20";
     if (focused === field)  return "border-[#ff5a5f]/50 ring-1 ring-[#ff5a5f]/12";
     return "border-white/10";
+  }
+
+  if (authLoading || isAuthenticated) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-[#060f17]">
+        <Loader2 className="w-8 h-8 text-[#ff5a5f] animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -360,13 +420,30 @@ function SignupForm() {
               }
             </motion.button>
 
-            <p className="text-white/25 text-xs text-center">
+            {/* Divider */}
+            <div className="flex items-center gap-3 pt-3">
+              <div className="h-px bg-white/6 flex-1" />
+              <span className="text-white/20 text-xs uppercase tracking-wider font-semibold">Or</span>
+              <div className="h-px bg-white/6 flex-1" />
+            </div>
+
+            {/* Google Signup Button */}
+            <div className="flex flex-col gap-2.5">
+              <div id="google-signup-btn" className="w-full flex justify-center mt-1" />
+            </div>
+
+            <p className="text-white/25 text-xs text-center pt-2">
               By signing up you agree to our{" "}
               <Link href="#" className="text-white/45 hover:underline">Terms</Link>
               {" "}and{" "}
               <Link href="#" className="text-white/45 hover:underline">Privacy Policy</Link>
             </p>
           </form>
+          <Script
+            src="https://accounts.google.com/gsi/client"
+            strategy="afterInteractive"
+            onLoad={initGoogleSignIn}
+          />
 
           <div className="px-8 pb-8 text-center">
             <p className="text-white/35 text-sm">

@@ -21,10 +21,10 @@ const footerLinks = {
     { label: "Careers", href: "/info/careers" },
     { label: "Press & Media", href: "/info/press-media" },
     { label: "Blog", href: "/info/blog" },
-    { label: "Contact Us", href: "/info/contact-us" },
+    { label: "Contact Us", href: "/contact" },
   ],
   Resources: [
-    { label: "Help Center", href: "/info/help-center" },
+    { label: "Help Center", href: "/support" },
     { label: "For Organizers", href: "/info/for-organizers" },
     { label: "Partner Program", href: "/info/partner-program" },
     { label: "API Documentation", href: "/info/api-documentation" },

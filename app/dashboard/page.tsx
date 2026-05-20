@@ -12,8 +12,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import toast from "react-hot-toast";
 import {
-  orderApi, promoCodeApi, eventApi, orderActionsApi,
+  orderApi, promoCodeApi, eventApi, orderActionsApi, authApi,
   OrganizerStats, ApiPromoCode, ApiEvent, extractError,
 } from "@/lib/api";
 import DashboardSkeleton from "@/components/DashboardSkeleton";
@@ -218,6 +219,20 @@ export default function DashboardPage() {
   // Orders tab: "recent" | "manage"
   const [ordersTab, setOrdersTab] = useState<"recent" | "manage">("recent");
 
+  // Resend email verification
+  const [resending, setResending] = useState(false);
+  async function handleResendVerification() {
+    if (!accessToken) return;
+    setResending(true);
+    const res = await authApi.resendVerification(accessToken);
+    setResending(false);
+    if (!res.success) {
+      toast.error(extractError(res));
+    } else {
+      toast.success("Verification link sent! Check your inbox.");
+    }
+  }
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.replace("/login?redirect=/dashboard");
     if (!authLoading && isAuthenticated && user?.role === "attendee") router.replace("/tickets");
@@ -358,6 +373,35 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+      {/* ── Email Verification Banner ────────────────────────────────────── */}
+      {user && !user.isVerified && (
+        <FadeIn className="mb-6">
+          <div className="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0 text-amber-400 mt-0.5">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-white font-semibold text-sm">Please verify your email address</h3>
+                <p className="text-white/40 text-xs mt-0.5">
+                  Verify your account to access all features. We sent a verification link to{" "}
+                  <strong className="text-white/60">{user.email}</strong>.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={handleResendVerification}
+                disabled={resending}
+                className="px-4 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-semibold hover:bg-amber-500/25 transition-all disabled:opacity-50"
+              >
+                {resending ? "Sending link…" : "Resend Link"}
+              </button>
+            </div>
+          </div>
+        </FadeIn>
+      )}
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <FadeIn className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">

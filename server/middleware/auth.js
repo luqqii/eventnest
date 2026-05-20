@@ -37,7 +37,7 @@ const protect = async (req, res, next) => {
 
     // Fetch user — ensures account still exists and is active
     const user = await User.findById(decoded.sub).select(
-      "name email role isActive organizerProfile"
+      "name email role isActive organizerProfile isVerified"
     );
 
     if (!user) {
@@ -67,7 +67,7 @@ const optionalAuth = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
     const decoded = verifyAccessToken(token);
-    const user = await User.findById(decoded.sub).select("name email role isActive");
+    const user = await User.findById(decoded.sub).select("name email role isActive isVerified");
 
     if (user && user.isActive) req.user = user;
   } catch (_) {
@@ -76,4 +76,19 @@ const optionalAuth = async (req, res, next) => {
   next();
 };
 
-module.exports = { protect, optionalAuth };
+/**
+ * requireVerified — blocks users whose email is not verified.
+ * Must be registered AFTER protect.
+ */
+const requireVerified = (req, res, next) => {
+  if (!req.user) {
+    return sendUnauthorized(res, "Authentication required.");
+  }
+  if (!req.user.isVerified) {
+    const { sendError } = require("../utils/apiResponse");
+    return sendError(res, "Please verify your email address to perform this action.", 403);
+  }
+  next();
+};
+
+module.exports = { protect, optionalAuth, requireVerified };

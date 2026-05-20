@@ -8,6 +8,11 @@ const {
   logout,
   getMe,
   updateMe,
+  forgotPassword,
+  resetPassword,
+  verifyEmail,
+  resendVerification,
+  googleLogin,
 } = require("../controllers/auth.controller");
 
 /**
@@ -51,5 +56,40 @@ router.get("/me", protect, getMe);
  * @access Private
  */
 router.patch("/me", protect, updateMe);
+
+/**
+ * @route  POST /api/auth/forgot-password
+ * @desc   Request password reset link
+ * @access Public
+ */
+router.post("/forgot-password", forgotPassword);
+
+/**
+ * @route  POST /api/auth/reset-password
+ * @desc   Reset password using token
+ * @access Public
+ */
+router.post("/reset-password", resetPassword);
+
+/**
+ * @route  GET /api/auth/verify-email/:token
+ * @desc   Verify email token
+ * @access Public
+ */
+router.get("/verify-email/:token", verifyEmail);
+
+/**
+ * @route  POST /api/auth/resend-verification
+ * @desc   Resend email verification token
+ * @access Private
+ */
+router.post("/resend-verification", protect, resendVerification);
+
+/**
+ * @route  POST /api/auth/google
+ * @desc   OAuth / Google Identity Services Login/Signup
+ * @access Public
+ */
+router.post("/google", googleLogin);
 
 module.exports = router;

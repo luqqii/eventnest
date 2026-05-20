@@ -103,7 +103,7 @@ const eventSchema = new mongoose.Schema(
       type: String,
       required: [true, "Category is required"],
       enum: {
-        values: ["Music", "Arts", "Business", "Technology", "Sports", "Food", "Other"],
+        values: ["Music", "Arts", "Business", "Technology", "Sports", "Food", "College", "Other"],
         message: "Invalid category",
       },
     },
@@ -178,6 +178,18 @@ const eventSchema = new mongoose.Schema(
       default: "7-days",
     },
 
+    customFields: {
+      type: [
+        {
+          label: { type: String, required: true },
+          type: { type: String, enum: ["text", "select"], default: "text" },
+          options: { type: [String], default: [] },
+          required: { type: Boolean, default: false }
+        }
+      ],
+      default: []
+    },
+
     // Soft-delete
     deletedAt: { type: Date, default: null },
   },
@@ -211,7 +223,7 @@ eventSchema.virtual("isPast").get(function () {
 });
 
 // ─── Pre-save: auto-generate slug + compute totalCapacity ─────────────────────
-eventSchema.pre("save", function (next) {
+eventSchema.pre("save", function () {
   // Generate slug from title if not set
   if (this.isModified("title") && !this.slug) {
     this.slug =
@@ -229,8 +241,6 @@ eventSchema.pre("save", function (next) {
     this.totalCapacity = this.ticketTiers.reduce((sum, t) => sum + t.quantity, 0);
     this.totalSold = this.ticketTiers.reduce((sum, t) => sum + t.sold, 0);
   }
-
-  next();
 });
 
 // ─── Static: find active published events ────────────────────────────────────

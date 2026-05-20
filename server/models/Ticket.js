@@ -80,6 +80,10 @@ const ticketSchema = new mongoose.Schema(
         transferredAt: { type: Date, default: Date.now },
       },
     ],
+    reminderSent: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
@@ -104,12 +108,11 @@ ticketSchema.virtual("isCheckedIn").get(function () {
 });
 
 // ─── Pre-save: generate unique ticket code ────────────────────────────────────
-ticketSchema.pre("save", function (next) {
+ticketSchema.pre("save", function () {
   if (!this.ticketCode) {
     // Format: EB-XXXXXXXX (8 hex chars, uppercase)
     this.ticketCode = "EB-" + crypto.randomBytes(4).toString("hex").toUpperCase();
   }
-  next();
 });
 
 // ─── Instance method: mark as checked-in ─────────────────────────────────────

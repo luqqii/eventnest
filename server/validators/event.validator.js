@@ -68,7 +68,7 @@ const createEventRules = [
     .notEmpty().withMessage("Start date is required")
     .isISO8601().withMessage("startDate must be a valid ISO 8601 date/time")
     .custom((value) => {
-      if (new Date(value) < new Date()) {
+      if (new Date(value) < new Date(Date.now() - 5 * 60 * 1000)) {
         throw new Error("Start date must be in the future");
       }
       return true;
@@ -85,24 +85,28 @@ const createEventRules = [
     }),
 
   body("timezone")
-    .optional()
+    .optional({ values: "falsy" })
     .isLength({ max: 50 }).withMessage("Invalid timezone"),
 
-  // Step 3 — Venue
+  // Step 3 — Venue (Only required if not online)
   body("venue.name")
+    .if((value, { req }) => !req.body.isOnline)
     .trim()
     .notEmpty().withMessage("Venue name is required"),
 
   body("venue.address")
+    .if((value, { req }) => !req.body.isOnline)
     .trim()
     .notEmpty().withMessage("Venue address is required"),
 
   body("venue.city")
+    .if((value, { req }) => !req.body.isOnline)
     .trim()
     .notEmpty().withMessage("Venue city is required"),
 
   body("venue.country")
-    .optional()
+    .if((value, { req }) => !req.body.isOnline)
+    .optional({ values: "falsy" })
     .isLength({ min: 2, max: 60 }).withMessage("Invalid country"),
 
   body("isOnline")
@@ -110,7 +114,7 @@ const createEventRules = [
     .isBoolean().withMessage("isOnline must be a boolean"),
 
   body("onlineLink")
-    .optional()
+    .optional({ values: "falsy" })
     .isURL().withMessage("onlineLink must be a valid URL"),
 
   // Step 4 — Ticket Tiers
@@ -118,12 +122,12 @@ const createEventRules = [
 
   // Step 5 — Media (optional at creation)
   body("coverImage")
-    .optional()
+    .optional({ values: "falsy" })
     .isURL().withMessage("coverImage must be a valid URL"),
 
   // Step 6 — Settings
   body("refundPolicy")
-    .optional()
+    .optional({ values: "falsy" })
     .isIn(["no-refund", "1-day", "7-days", "30-days"])
     .withMessage("Invalid refund policy"),
 

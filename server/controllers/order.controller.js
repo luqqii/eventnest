@@ -4,7 +4,7 @@ const Order = require("../models/Order");
 const Ticket = require("../models/Ticket");
 const Event = require("../models/Event");
 const PromoCode = require("../models/PromoCode");
-const { sendTicketEmail } = require("../utils/email");
+const { sendTicketEmail, sendRefundEmail } = require("../utils/email");
 const { getStripe } = require("../utils/stripe");
 const {
   sendSuccess,
@@ -83,6 +83,9 @@ const createOrder = async (req, res, next) => {
     const serviceFeeRate = 0.08;
     const serviceFee = Math.round(subtotal * serviceFeeRate * 100) / 100;
     const total = Math.max(0, Math.round((subtotal + serviceFee - discountAmount) * 100) / 100);
+    if (total > 0) {
+      return sendError(res, "Direct checkout is only allowed for free tickets. Please pay via Stripe.", 400);
+    }
 
     // ── Create order ─────────────────────────────────────────────────────────
     const order = await Order.create({
@@ -380,6 +383,18 @@ const refundOrder = async (req, res, next) => {
       { order: order._id },
       { status: "cancelled" }
     );
+
+    // ── Send refund confirmation email (fire-and-forget) ──────────────────────
+    const populatedOrder = await Order.findById(order._id).populate("buyer", "name email");
+    if (populatedOrder?.buyer?.email) {
+      sendRefundEmail({
+        to: populatedOrder.buyer.email,
+        orderNumber: order.orderNumber,
+        total: order.total,
+        eventTitle: order.event?.title ?? "the event",
+        buyerName: populatedOrder.buyer.name,
+      }).catch(() => {});
+    }
 
     return sendSuccess(res, { orderNumber: order.orderNumber, refundAmount: order.total }, "Refund issued successfully.");
   } catch (err) {

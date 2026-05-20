@@ -1,5 +1,7 @@
 const { validationResult } = require("express-validator");
 const Event = require("../models/Event");
+const Ticket = require("../models/Ticket");
+const { sendEventUpdateEmail, sendEventCancelledEmail } = require("../utils/email");
 const {
   sendSuccess,
   sendCreated,
@@ -28,6 +30,7 @@ const createEvent = async (req, res, next) => {
 
     const {
       title,
+      slug,
       description,
       category,
       tags = [],
@@ -43,6 +46,7 @@ const createEvent = async (req, res, next) => {
       images,
       refundPolicy,
       isPrivate,
+      customFields = [],
       // publish flag: if true, set status = "published" immediately
       publish = false,
     } = req.body;
@@ -50,6 +54,7 @@ const createEvent = async (req, res, next) => {
     // 2. Build event document
     const event = await Event.create({
       title,
+      slug: slug || undefined,
       description,
       category,
       tags,
@@ -58,7 +63,12 @@ const createEvent = async (req, res, next) => {
       endDate: new Date(endDate),
       timezone: timezone || "America/New_York",
       isAllDay: isAllDay || false,
-      venue,
+      venue: {
+        name: isOnline ? "Online Event" : (venue?.name || ""),
+        address: isOnline ? "Internet" : (venue?.address || ""),
+        city: isOnline ? "Virtual" : (venue?.city || ""),
+        country: isOnline ? "US" : (venue?.country || "US"),
+      },
       isOnline: isOnline || false,
       onlineLink: onlineLink || "",
       ticketTiers,
@@ -66,6 +76,7 @@ const createEvent = async (req, res, next) => {
       images: images || [],
       refundPolicy: refundPolicy || "7-days",
       isPrivate: isPrivate || false,
+      customFields: customFields || [],
       status: publish ? "published" : "draft",
       publishedAt: publish ? new Date() : null,
     });
@@ -205,21 +216,81 @@ const updateEvent = async (req, res, next) => {
 
     // Fields that are safe to update
     const updatable = [
-      "title", "description", "category", "tags",
+      "title", "slug", "description", "category", "tags",
       "startDate", "endDate", "timezone", "isAllDay",
       "venue", "isOnline", "onlineLink",
       "ticketTiers", "coverImage", "images",
-      "refundPolicy", "isPrivate",
+      "refundPolicy", "isPrivate", "customFields",
     ];
 
     updatable.forEach((field) => {
       if (req.body[field] !== undefined) {
-        event[field] = req.body[field];
+        if (field === "slug" && !req.body[field]) {
+          event[field] = undefined;
+        } else {
+          event[field] = req.body[field];
+        }
       }
     });
 
+    if (event.isOnline) {
+      event.venue = {
+        name: event.venue?.name || "Online Event",
+        address: event.venue?.address || "Internet",
+        city: event.venue?.city || "Virtual",
+        country: event.venue?.country || "US",
+      };
+    }
+
+    // Track modifications for notification if event is published
+    const wasPublished = event.status === "published";
+    const changes = {};
+
+    if (wasPublished) {
+      if (event.isModified("startDate") && event.startDate) {
+        changes["Start Date/Time"] = new Date(event.startDate).toLocaleString();
+      }
+      if (event.isModified("venue") && event.venue) {
+        changes["Venue"] = `${event.venue.name || "Online"}, ${event.venue.city || "Virtual"}`;
+      }
+      if (event.isModified("onlineLink") && event.onlineLink) {
+        changes["Online Link"] = event.onlineLink;
+      }
+      if (event.isModified("title") && event.title) {
+        changes["Title"] = event.title;
+      }
+    }
+
     await event.save();
     await event.populate("organizer", "name email avatar");
+
+    // Trigger update emails in background (fire-and-forget)
+    if (wasPublished && Object.keys(changes).length > 0) {
+      Ticket.find({ event: event._id, status: "valid" })
+        .then((tickets) => {
+          const recipients = new Map();
+          tickets.forEach((t) => {
+            if (t.attendeeInfo?.email) {
+              recipients.set(t.attendeeInfo.email.toLowerCase(), t.attendeeInfo.name || "Attendee");
+            }
+          });
+
+          for (const [email, name] of recipients.entries()) {
+            sendEventUpdateEmail({
+              to: email,
+              eventTitle: event.title,
+              changes,
+              buyerName: name,
+              eventUrl: `${process.env.FRONTEND_URL || "http://localhost:3000"}/events/${event.slug}`,
+            }).catch((err) => {
+              console.error(`[email] Failed to send update email to ${email}:`, err.message);
+            });
+          }
+        })
+        .catch((err) => {
+          console.error("[email] Failed to query tickets for update emails:", err.message);
+        });
+    }
 
     return sendSuccess(res, { event }, "Event updated");
   } catch (err) {
@@ -272,6 +343,40 @@ const deleteEvent = async (req, res, next) => {
     event.deletedAt = new Date();
     event.status = "cancelled";
     await event.save();
+
+    // Fetch and cancel all valid tickets, notifying attendees (fire-and-forget)
+    Ticket.find({ event: event._id, status: "valid" })
+      .then(async (tickets) => {
+        if (tickets.length === 0) return;
+
+        // Mark tickets as cancelled
+        await Ticket.updateMany(
+          { event: event._id, status: "valid" },
+          { status: "cancelled", cancelledAt: new Date() }
+        );
+
+        // Group by email and send cancellation emails
+        const recipients = new Map();
+        tickets.forEach((t) => {
+          if (t.attendeeInfo?.email) {
+            recipients.set(t.attendeeInfo.email.toLowerCase(), t.attendeeInfo.name || "Attendee");
+          }
+        });
+
+        for (const [email, name] of recipients.entries()) {
+          sendEventCancelledEmail({
+            to: email,
+            eventTitle: event.title,
+            buyerName: name,
+            refundStatus: "A full refund has been initiated and will be processed automatically.",
+          }).catch((err) => {
+            console.error(`[email] Failed to send cancellation email to ${email}:`, err.message);
+          });
+        }
+      })
+      .catch((err) => {
+        console.error("[email] Failed to query or cancel tickets for event deletion:", err.message);
+      });
 
     return sendSuccess(res, null, "Event deleted");
   } catch (err) {

@@ -136,13 +136,21 @@ async function request<T>(
   options: RequestInit = {},
   token?: string | null
 ): Promise<ApiResponse<T>> {
+  let activeToken = token;
+  if (typeof window !== "undefined") {
+    const storedToken = localStorage.getItem("eb_token");
+    if (storedToken) {
+      activeToken = storedToken;
+    }
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  if (activeToken) {
+    headers["Authorization"] = `Bearer ${activeToken}`;
   }
 
   // Abort after REQUEST_TIMEOUT_MS so the UI never hangs forever
@@ -164,6 +172,41 @@ async function request<T>(
     });
 
     clearTimeout(timer);
+
+    // Handle 401 Unauthorized by trying to refresh token
+    if (res.status === 401 && endpoint !== "/auth/refresh" && endpoint !== "/auth/login" && endpoint !== "/auth/signup") {
+      try {
+        const refreshRes = await request<{ accessToken: string }>("/auth/refresh", { method: "POST" });
+        if (refreshRes.success && refreshRes.data?.accessToken) {
+          const newAccessToken = refreshRes.data.accessToken;
+          if (typeof window !== "undefined") {
+            localStorage.setItem("eb_token", newAccessToken);
+            document.cookie = `access_token=${newAccessToken}; path=/; max-age=900; SameSite=Lax`;
+            try {
+              const rawUser = localStorage.getItem("eb_user");
+              if (rawUser) {
+                const user = JSON.parse(rawUser);
+                if (user?.role) {
+                  document.cookie = `user_role=${user.role}; path=/; max-age=900; SameSite=Lax`;
+                }
+              }
+            } catch {}
+          }
+          // Retry the request with new token
+          return request<T>(endpoint, options, newAccessToken);
+        } else {
+          // Refresh failed - log out and redirect
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("eb_user");
+            localStorage.removeItem("eb_token");
+            document.cookie = "access_token=; path=/; max-age=0";
+            window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+          }
+        }
+      } catch (refreshErr) {
+        console.error("[api] Token refresh failed:", refreshErr);
+      }
+    }
 
     // Handle non-JSON bodies (e.g. Next.js proxy returning HTML when backend is down)
     const contentType = res.headers.get("content-type") ?? "";
@@ -276,6 +319,34 @@ export const authApi = {
 
   me: (token: string) =>
     request<{ user: ApiUser }>("/auth/me", {}, token),
+
+  forgotPassword: (email: string) =>
+    request("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (body: { token: string; password?: string }) =>
+    request("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  verifyEmail: (token: string) =>
+    request(`/auth/verify-email/${token}`, {
+      method: "GET",
+    }),
+
+  resendVerification: (authToken: string) =>
+    request("/auth/resend-verification", {
+      method: "POST",
+    }, authToken),
+
+  googleLogin: (credential: string) =>
+    request<{ user: ApiUser; accessToken: string; isNewUser: boolean }>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ credential }),
+    }),
 };
 
 // ─── Event endpoints ──────────────────────────────────────────────────────────
@@ -572,3 +643,14 @@ export const adminApi = {
     );
   },
 };
+
+// ─── Support / Contact endpoints ──────────────────────────────────────────────
+
+export const supportApi = {
+  submitTicket: (body: { name: string; email: string; subject: string; message: string }) =>
+    request<{ success: boolean; message: string }>("/support", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+};
+

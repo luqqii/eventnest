@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const { protect, optionalAuth } = require("../middleware/auth");
+const { protect, optionalAuth, requireVerified } = require("../middleware/auth");
 const { isOrganizer } = require("../middleware/roles");
 const {
   createEventRules,
@@ -57,7 +57,7 @@ router.get("/my", protect, isOrganizer, getMyEvents);
  *
  * @access Private — Organizer / Admin
  */
-router.post("/", protect, isOrganizer, ...createEventRules, createEvent);
+router.post("/", protect, isOrganizer, requireVerified, ...createEventRules, createEvent);
 
 /**
  * @route  GET /api/events/:id
@@ -71,14 +71,14 @@ router.get("/:id", optionalAuth, getEvent);
  * @desc   Update a draft or published event
  * @access Private — Organizer (own events) / Admin
  */
-router.patch("/:id", protect, isOrganizer, ...eventIdParamRule, updateEvent);
+router.patch("/:id", protect, isOrganizer, requireVerified, ...eventIdParamRule, updateEvent);
 
 /**
  * @route  PATCH /api/events/:id/publish
  * @desc   Publish a draft event
  * @access Private — Organizer (own events) / Admin
  */
-router.patch("/:id/publish", protect, isOrganizer, ...publishEventRules, publishEvent);
+router.patch("/:id/publish", protect, isOrganizer, requireVerified, ...publishEventRules, publishEvent);
 
 /**
  * @route  DELETE /api/events/:id

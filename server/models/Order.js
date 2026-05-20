@@ -146,13 +146,12 @@ orderSchema.virtual("ticketCount").get(function () {
 });
 
 // ─── Pre-save: generate order number ─────────────────────────────────────────
-orderSchema.pre("save", function (next) {
+orderSchema.pre("save", function () {
   if (!this.orderNumber) {
     const ts = Date.now().toString(36).toUpperCase();
     const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
     this.orderNumber = `ORD-${ts}-${rand}`;
   }
-  next();
 });
 
 // ─── Static: revenue summary for a given event ───────────────────────────────

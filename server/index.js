@@ -16,6 +16,7 @@ const rateLimit = require("express-rate-limit");
 
 const connectDB = require("./config/db");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
+const reminderWorker = require("./utils/reminderWorker");
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 const authRoutes = require("./routes/auth.routes");
@@ -25,6 +26,7 @@ const ticketRoutes = require("./routes/ticket.routes");
 const paymentRoutes = require("./routes/payment.routes");
 const promoCodeRoutes = require("./routes/promoCode.routes");
 const adminRoutes = require("./routes/admin.routes");
+const supportRoutes = require("./routes/support.routes");
 const { handleWebhook } = require("./controllers/payment.controller");
 
 // ─── App init ────────────────────────────────────────────────────────────────
@@ -35,16 +37,34 @@ const isDev = process.env.NODE_ENV !== "production";
 // ─── Security middleware ──────────────────────────────────────────────────────
 app.use(helmet());
 
-// CORS — allow Next.js frontend
+// CORS — allow Next.js frontend with support for dynamic Vercel previews and subdomains
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://eventnest-fullstack.vercel.app",
-      "https://eventbookings-ten.vercel.app", 
-      "https://eventnest-delta.vercel.app",
-      process.env.CLIENT_URL
-    ].filter(Boolean),
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps, curl, or server-side calls)
+      if (!origin) return callback(null, true);
+
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "https://eventnest-fullstack.vercel.app",
+        "https://eventbookings-ten.vercel.app",
+        "https://eventnest-delta.vercel.app",
+        process.env.CLIENT_URL
+      ].filter(Boolean);
+
+      // Check if origin matches allowed list, ends with .vercel.app, or is localhost
+      const isAllowed = 
+        allowedOrigins.indexOf(origin) !== -1 ||
+        origin.endsWith(".vercel.app") ||
+        /^https?:\/\/localhost(:\d+)?$/.test(origin);
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        console.warn(`[cors] Blocked request from origin: ${origin}`);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,          // needed for HttpOnly cookie exchange
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "x-access-token"],
@@ -78,7 +98,7 @@ app.post("/api/payments/webhook", express.raw({ type: "application/json" }), han
 // ─── Body parsers ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
+app.use(cookieParser(process.env.JWT_REFRESH_SECRET || "default_cookie_secret"));
 
 // ─── HTTP logging ─────────────────────────────────────────────────────────────
 app.use(morgan(isDev ? "dev" : "combined"));
@@ -107,14 +127,64 @@ app.use("/api/tickets", ticketRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/promo-codes", promoCodeRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/support", supportRoutes);
 
 // ─── 404 + Global error handler ───────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 
 // ─── Start server (only after DB is connected) ────────────────────────────────
+async function seedDemoUsers() {
+  try {
+    const User = require("./models/User");
+    const demoUsers = [
+      {
+        name: "Demo Attendee",
+        email: "attendee@eventnest.dev",
+        password: "password123",
+        role: "attendee",
+        isVerified: true,
+      },
+      {
+        name: "Demo Organizer",
+        email: "organizer@eventnest.dev",
+        password: "password123",
+        role: "organizer",
+        isVerified: true,
+        organizerProfile: {
+          companyName: "Nest Events Ltd",
+          website: "https://nestevents.dev",
+          verified: true,
+        },
+      },
+      {
+        name: "Demo Admin",
+        email: "admin@eventnest.dev",
+        password: "password123",
+        role: "admin",
+        isVerified: true,
+      },
+    ];
+
+    for (const u of demoUsers) {
+      const exists = await User.findOne({ email: u.email });
+      if (!exists) {
+        await User.create(u);
+        console.log(`👤 [seed] Created demo user: ${u.email} (${u.role})`);
+      }
+    }
+  } catch (err) {
+    console.error("❌ Failed to seed demo users:", err.message);
+  }
+}
+
+// ─── Start server (only after DB is connected) ────────────────────────────────
 async function start() {
   await connectDB();   // exits via process.exit(1) if MongoDB is unreachable
+  await seedDemoUsers();
+
+  // Start background ticket reminder worker
+  reminderWorker.start();
 
   app.listen(PORT, () => {
     console.log(`

@@ -12,6 +12,7 @@ const categoryColors: Record<string, { pill: string; glow: string }> = {
   Business:   { pill: "bg-amber-500/15 text-amber-300 border-amber-500/20",      glow: "rgba(245,158,11,0.15)"  },
   Sports:     { pill: "bg-orange-500/15 text-orange-300 border-orange-500/20",   glow: "rgba(249,115,22,0.15)"  },
   Food:       { pill: "bg-red-500/15 text-red-300 border-red-500/20",            glow: "rgba(239,68,68,0.15)"   },
+  College:    { pill: "bg-emerald-500/15 text-emerald-300 border-emerald-500/20", glow: "rgba(16,185,129,0.15)" },
 };
 
 const fallbackColors = { pill: "bg-white/8 text-white/60 border-white/10", glow: "rgba(255,90,95,0.10)" };
